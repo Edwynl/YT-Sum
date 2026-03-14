@@ -70,7 +70,7 @@ async def health():
 
 @app.post("/summarize")
 async def api_summarize(req: SummarizeRequest):
-    """一键总结接口（非流式）- 同步版本保留用于旧兼容或缓存"""
+    """一键总结接口（非流式）"""
     try:
         video_id = extract_video_id(req.url)
     except ValueError as e:
@@ -112,19 +112,19 @@ async def api_summarize(req: SummarizeRequest):
 @app.post("/summarize/stream")
 async def api_summarize_stream(req: SummarizeRequest):
     """
-    流式总结接口（SSE）- 并行增强版。
+    流式总结接口（SSE）- 顺序化修正版。
+    解决并发导致翻译失效的问题，优先总结，总结完再分批翻译。
     """
     try:
         video_id = extract_video_id(req.url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 如果有完全缓存，直接秒回
+    # 如果有完全缓存，秒回
     if req.use_cache:
         cached = load_cache(video_id)
         if cached:
             async def cached_stream():
-                # 分两波发，模仿流式感但极快
                 yield f"data: {json.dumps({'type': 'transcript', 'data': cached['transcript'], 'cached': True})}\n\n"
                 tokens = cached['summary'].split(' ')
                 for t in tokens:
@@ -133,75 +133,43 @@ async def api_summarize_stream(req: SummarizeRequest):
             return StreamingResponse(cached_stream(), media_type="text/event-stream")
 
     async def event_stream():
-        # Step 1：立即获取字幕
+        # Step 1：获取原始字幕
         try:
             transcript = get_transcript(req.url, proxy=req.proxy)
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': f'获取字幕失败: {e}'})}\n\n"
             return
 
-        # Step 2：立即推送原始字幕，消除白屏
+        # 推送原始字幕消除白屏
         yield f"data: {json.dumps({'type': 'transcript', 'data': transcript})}\n\n"
 
-        # Step 3：并发启动【总结流】和【翻译流】
-        summary_queue = asyncio.Queue()
-        translate_queue = asyncio.Queue()
-
-        async def run_summary():
-            try:
-                async for token in summarize_stream(transcript, model=req.model):
-                    await summary_queue.put(token)
-            except Exception as e:
-                await summary_queue.put(f"ERROR: {e}")
-            await summary_queue.put(None) # Sentinel
-
-        async def run_translation():
-            try:
-                async for i, trans_batch in batch_translate_stream(transcript, model=req.model):
-                    await translate_queue.put((i, trans_batch))
-            except Exception as e:
-                print(f"Parallel translation error: {e}")
-            await translate_queue.put(None) # Sentinel
-
-        # 启动后台任务
-        s_task = asyncio.create_task(run_summary())
-        t_task = asyncio.create_task(run_translation())
-
+        # Step 2：流式总结（高优先级，全速工作）
         full_summary = ""
-        bilingual_map = {idx: t["text"] for idx, t in enumerate(transcript)} # Placeholder
+        try:
+            async for token in summarize_stream(transcript, model=req.model):
+                full_summary += token
+                yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'总结中断: {e}'})}\n\n"
+            # 即便总结失败，我们也尝试继续翻译字幕
+
+        # Step 3：顺序翻译字幕（总结完成后执行，确保 Ollama 资源稳定）
         translation_results = [None] * len(transcript)
-
-        # 混合监听两个队列并行输出
-        while not (s_task.done() and t_task.done() and summary_queue.empty() and translate_queue.empty()):
-            # 优先处理总结，让用户看到文字在动
+        if req.translate:
             try:
-                while not summary_queue.empty():
-                    token = await summary_queue.get()
-                    if token is None: break
-                    if token.startswith("ERROR: "):
-                         yield f"data: {json.dumps({'type': 'error', 'message': token})}\n\n"
-                    else:
-                        full_summary += token
-                        yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
-            except Exception: pass
+                # 告知前端进入翻译阶段
+                yield f"data: {json.dumps({'type': 'token', 'text': '\n\n---\n*正在为您翻译字幕预览区...*'})}\n\n"
+                async for i, trans_batch in batch_translate_stream(transcript, model=req.model):
+                    # 推送翻译块
+                    yield f"data: {json.dumps({'type': 'transcript_chunk', 'start_idx': i, 'data': trans_batch})}\n\n"
+                    # 写入缓存数据结构
+                    for offset, val in enumerate(trans_batch):
+                        if i + offset < len(translation_results):
+                            translation_results[i + offset] = val
+            except Exception as e:
+                print(f"Post-summary translation error: {e}")
 
-            # 其次处理翻译包
-            try:
-                while not translate_queue.empty():
-                    item = await translate_queue.get()
-                    if item is None: break
-                    idx_start, trans_list = item
-                    # 发送分段更新
-                    yield f"data: {json.dumps({'type': 'transcript_chunk', 'start_idx': idx_start, 'data': trans_list})}\n\n"
-                    # 更新缓存数据结构
-                    for offset, val in enumerate(trans_list):
-                        if idx_start + offset < len(translation_results):
-                            translation_results[idx_start + offset] = val
-            except Exception: pass
-            
-            await asyncio.sleep(0.05) # 稍微让出控制权
-
-        # 完成后整理最终状态并持久化
+        # 完成后持久化
         final_bilingual = []
         for i, t in enumerate(transcript):
             final_bilingual.append({
