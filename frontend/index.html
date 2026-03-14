@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Summarizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: #2a2a38;
+    --accent: #7c6aff;
+    --accent2: #ff6b6b;
+    --accent3: #43e97b;
+    --text: #e8e8f0;
+    --text-muted: #666680;
+    --text-dim: #3a3a55;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    animation: pulse-logo 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-logo {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .header-title {
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .header-title span { color: var(--accent); }
+
+  .header-tag {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 2px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── Input Zone ── */
+  .input-zone {
+    padding: 32px 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .input-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .input-label::before {
+    content: '>';
+    color: var(--accent);
+    animation: blink 1.2s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 14px 18px;
+    outline: none;
+    transition: border-color 0.2s;
+    border-radius: 2px;
+  }
+
+  .url-input::placeholder { color: var(--text-dim); }
+
+  .url-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(124,106,255,0.1);
+  }
+
+  .model-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 0 14px;
+    outline: none;
+    cursor: pointer;
+    border-radius: 2px;
+    min-width: 140px;
+  }
+
+  .btn-summarize {
+    background: var(--accent);
+    color: white;
+    border: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 28px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-summarize:hover { background: #9181ff; transform: translateY(-1px); }
+  .btn-summarize:active { transform: translateY(0); }
+  .btn-summarize:disabled {
+    background: var(--border);
+    color: var(--text-dim);
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ── Status Bar ── */
+  .status-bar {
+    padding: 8px 40px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-dot.loading { background: var(--accent); animation: spin-dot 1s linear infinite; }
+  .status-dot.done { background: var(--accent3); }
+  .status-dot.error { background: var(--accent2); }
+
+  @keyframes spin-dot {
+    0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; }
+  }
+
+  .status-cache {
+    margin-left: auto;
+    padding: 2px 8px;
+    background: rgba(67,233,123,0.1);
+    border: 1px solid rgba(67,233,123,0.2);
+    color: var(--accent3);
+    font-size: 10px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  /* ── Main Layout ── */
+  .main-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 0;
+  }
+
+  /* ── Summary Panel ── */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .panel-icon {
+    font-size: 14px;
+    opacity: 0.8;
+  }
+
+  .panel-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-sm {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .btn-sm:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 28px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* Summary markdown-like rendering */
+  .summary-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    color: var(--text-dim);
+  }
+
+  .empty-ascii {
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: center;
+    opacity: 0.4;
+  }
+
+  .summary-content {
+    font-size: 13px;
+    line-height: 1.85;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Style inline markdown elements */
+  .summary-content .h2 {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 20px 0 8px;
+    letter-spacing: 0.5px;
+    display: block;
+  }
+
+  .summary-content .h2:first-child { margin-top: 0; }
+
+  .cursor-blink {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--accent);
+    animation: blink 0.8s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+
+  /* ── Transcript Panel ── */
+  .transcript-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .search-row {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    padding: 2px 0;
+  }
+
+  .search-input::placeholder { color: var(--text-dim); }
+
+  .transcript-body {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .subtitle-card {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(42,42,56,0.5);
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 12px;
+    align-items: start;
+    transition: background 0.1s;
+  }
+
+  .subtitle-card:hover { background: var(--surface2); }
+  .subtitle-card.highlight { background: rgba(124,106,255,0.08); }
+
+  .subtitle-time {
+    font-size: 10px;
+    color: var(--accent);
+    padding-top: 2px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+
+  .subtitle-texts { flex: 1; }
+
+  .subtitle-en {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+
+  .subtitle-zh {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* search highlight */
+  mark {
+    background: rgba(255,107,107,0.25);
+    color: var(--accent2);
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+
+  /* ── Loading skeleton ── */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 2px;
+    height: 14px;
+    margin-bottom: 10px;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .skeleton.short { width: 60%; }
+  .skeleton.medium { width: 85%; }
+  .skeleton.long { width: 100%; }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 60px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">▶</div>
+  <div class="header-title">YT<span>Sum</span></div>
+  <div class="header-tag">Local AI · Ollama</div>
+</header>
+
+<div class="input-zone">
+  <div class="input-label">YouTube URL</div>
+  <div class="input-row">
+    <input class="url-input" id="urlInput"
+      type="text"
+      placeholder="https://www.youtube.com/watch?v=..."
+      autocomplete="off"
+      spellcheck="false">
+    <select class="model-select" id="modelSelect">
+      <option value="qwen3.5:9b">qwen3.5:9b (保底)</option>
+    </select>
+    <button class="btn-sm" style="margin-left:4px; height:auto; padding:0 8px" onclick="loadModels()">🔄 刷新</button>
+    <button class="btn-summarize" id="btnSummarize" onclick="startSummarize()">
+      ▶ 一键总结
+    </button>
+  </div>
+  <!-- 代理配置 -->
+  <div class="input-row" style="margin-top:8px; border-top: 1px solid var(--border); padding-top:8px">
+    <div style="font-size:11px; color:var(--text-dim); display:flex; align-items:center;">
+      <span>代理(可选):</span>
+      <input id="proxyInput" type="text" placeholder="http://127.0.0.1:7890" 
+             style="background:transparent; border:none; color:var(--accent2); font-size:11px; width:200px; margin-left:4px; outline:none">
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">就绪 — 粘贴 YouTube 链接开始</span>
+  <span class="status-cache" id="cacheTag" style="display:none">⚡ CACHED</span>
+</div>
+
+<div class="progress-bar" id="progressBar" style="display:none">
+  <div class="progress-fill" id="progressFill" style="width:0%"></div>
+</div>
+
+<div class="main-layout">
+
+  <!-- 左：AI 总结 -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-icon">◈</span>
+      AI 总结
+      <div class="panel-actions">
+        <button class="btn-sm" onclick="copyResult()">复制</button>
+        <button class="btn-sm" onclick="exportMd()">导出 .md</button>
+        <button class="btn-sm" onclick="clearCache()">清除缓存</button>
+      </div>
+    </div>
+    <div class="panel-body" id="summaryPanel">
+      <div class="summary-empty" id="summaryEmpty">
+        <div class="empty-ascii">┌─────────────────────┐<br>│  等待视频链接输入...  │<br>└─────────────────────┘</div>
+        <div style="font-size:11px;color:var(--text-dim)">粘贴链接后点击一键总结</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：双语字幕 -->
+  <div class="transcript-panel">
+    <div class="panel-header">
+      <span class="panel-icon">≡</span>
+      双语字幕
+      <div class="panel-actions" style="margin-left:auto">
+        <span id="subtitleCount" style="color:var(--text-dim);font-size:10px"></span>
+      </div>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="searchInput"
+        placeholder="/ 搜索字幕关键词..."
+        oninput="filterTranscript(this.value)">
+    </div>
+    <div class="transcript-body" id="transcriptPanel">
+      <div class="summary-empty">
+        <div class="empty-ascii" style="opacity:0.25">─── 字幕将在总结完成后显示 ───</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentVideoId = null;
+let transcriptData = [];
+
+// 强制将任何类型的错误/对象转为人类可读字符串
+function stringifyError(err) {
+  if (!err) return '未知错误';
+  if (typeof err === 'string') return err;
+  // 先处理 Error 对象
+  if (err instanceof Error) return err.message || String(err);
+  // 再处理带 message 属性的对象，确保是字符串
+  if (typeof err === 'object' && err.message) {
+    const msg = err.message;
+    if (typeof msg === 'string') return msg;
+    if (typeof msg === 'object') return JSON.stringify(msg);
+    return String(msg);
+  }
+  // 其他对象转为 JSON
+  try {
+    return JSON.stringify(err, null, 2);
+  } catch (e) {
+    return String(err);
+  }
+}
+
+// ── 设置状态栏 ──
+function setStatus(text, mode = 'ready') {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (!dot || !txt) return;
+  
+  // 确保 text 是字符串
+  const safeText = stringifyError(text);
+  
+  txt.innerText = safeText;
+  dot.className = 'status-dot ' + mode;
+}
+
+// ── 动态加载模型 ──
+async function loadModels() {
+  const select = document.getElementById('modelSelect');
+  if (!select) return;
+  
+  console.log('Loading models...');
+  try {
+    const res = await fetch('/models?t=' + new Date().getTime());
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.models && data.models.length > 0) {
+        let html = '';
+        data.models.forEach(m => {
+          html += '<option value="' + m + '">' + m + '</option>';
+        });
+        select.innerHTML = html;
+        
+        // 尝试自动选中
+        for (let i = 0; i < select.options.length; i++) {
+          if (select.options[i].value.indexOf('qwen3.5:9b') !== -1) {
+            select.selectedIndex = i;
+            break;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Load models error:', e);
+  }
+}
+
+// 立即运行一次
+loadModels();
+
+// ── 格式化时间戳 ──
+function formatTime(seconds) {
+  const s = Math.floor(seconds);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  const mm = String(m % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+// ── 状态管理 ──
+function setStatus(text, state = 'idle') {
+  document.getElementById('statusText').textContent = text;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state !== 'idle' ? ' ' + state : '');
+}
+
+function setProgress(pct) {
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  if (pct <= 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  fill.style.width = pct + '%';
+  if (pct >= 100) setTimeout(() => bar.style.display = 'none', 800);
+}
+
+// ── 渲染总结内容（简单 markdown 着色）──
+function renderSummary(text) {
+  const panel = document.getElementById('summaryPanel');
+  const lines = text.split('\n');
+  let html = '<div class="summary-content">';
+
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      html += `<span class="h2">${escapeHtml(line.replace('## ', ''))}</span>`;
+    } else if (line.startsWith('- **')) {
+      // Bold bullet
+      const formatted = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text)">$1</strong>');
+      html += escapeHtml(line).replace(
+        /\*\*(.+?)\*\*/g,
+        '<strong style="color:var(--text)">$1</strong>'
+      ) + '\n';
+    } else {
+      html += escapeHtml(line) + '\n';
+    }
+  }
+
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 渲染字幕 ──
+function renderTranscript(data) {
+  transcriptData = data;
+  document.getElementById('subtitleCount').textContent = `${data.length} 条`;
+  displayTranscript(data);
+}
+
+function displayTranscript(items) {
+  const panel = document.getElementById('transcriptPanel');
+  if (!items.length) {
+    panel.innerHTML = '<div class="summary-empty"><div class="empty-ascii" style="opacity:0.25">─── 未找到匹配字幕 ───</div></div>';
+    return;
+  }
+  panel.innerHTML = items.map(item => `
+    <div class="subtitle-card">
+      <div class="subtitle-time">${formatTime(item.start)}</div>
+      <div class="subtitle-texts">
+        <div class="subtitle-en">${escapeHtml(item.text)}</div>
+        ${item.translation ? `<div class="subtitle-zh">${escapeHtml(item.translation)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── 字幕搜索 ──
+function filterTranscript(query) {
+  if (!query.trim()) { displayTranscript(transcriptData); return; }
+  const q = query.toLowerCase();
+  const filtered = transcriptData.filter(item =>
+    item.text.toLowerCase().includes(q) ||
+    (item.translation && item.translation.includes(q))
+  );
+  const panel = document.getElementById('transcriptPanel');
+  panel.innerHTML = filtered.map(item => {
+    const enHighlighted = highlightMatch(item.text, q);
+    const zhHighlighted = item.translation ? highlightMatch(item.translation, q) : '';
+    return `
+      <div class="subtitle-card highlight">
+        <div class="subtitle-time">${formatTime(item.start)}</div>
+        <div class="subtitle-texts">
+          <div class="subtitle-en">${enHighlighted}</div>
+          ${zhHighlighted ? `<div class="subtitle-zh">${zhHighlighted}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function highlightMatch(text, query) {
+  const escaped = escapeHtml(text);
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return escaped.replace(re, '<mark>$1</mark>');
+}
+
+// ── 主函数：一键总结 ──
+async function startSummarize() {
+  const url = document.getElementById('urlInput').value.trim();
+  const select = document.getElementById('modelSelect');
+  const model = select ? select.value : 'qwen3.5:9b';
+
+  console.log('Action: startSummarize', { url, model });
+
+  if (!url) {
+    alert('请输入 YouTube 链接');
+    return;
+  }
+
+  const btn = document.getElementById('btnSummarize');
+  btn.disabled = true;
+  setStatus('正在启动...', 'loading');
+
+  try {
+    document.getElementById('summaryPanel').innerHTML = '<div class="summary-content">正在发送请求，请稍候...</div>';
+    
+    const proxy = document.getElementById('proxyInput').value.trim();
+    console.log('Action: startSummarize', { url, model, proxy });
+    
+    const response = await fetch('/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, model, translate: true, use_cache: true, proxy: proxy || null })
+    });
+
+    // 为防 Body 被多次读取导致锁定，先转为 text
+    const responseText = await response.text();
+    let result = null;
+    
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.warn('Response is not JSON:', responseText.slice(0, 100));
+    }
+
+    if (!response.ok) {
+      // 提取错误详情，确保是字符串
+      let errorMsg;
+      if (result && result.detail) {
+        errorMsg = typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail);
+      } else {
+        errorMsg = responseText;
+      }
+      if (!errorMsg || (typeof errorMsg === 'string' && errorMsg.length > 500)) {
+        errorMsg = '请求失败 (HTTP ' + response.status + ')';
+      }
+      throw new Error(String(errorMsg));
+    }
+
+    if (!result || !result.summary) {
+      throw new Error('服务器响应数据不完整，未包含总结内容');
+    }
+
+    renderSummary(result.summary);
+    renderTranscript(result.transcript || []);
+    setStatus('总结完成', 'done');
+
+  } catch (err) {
+    console.error('Submit error:', err);
+    // 使用统一的字符串化函数，杜绝 [object Object]
+    const finalMsg = stringifyError(err);
+    setStatus('出错: ' + finalMsg, 'error');
+    alert('操作失败: ' + finalMsg);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 渲染总结（带 markdown 着色）──
+function formatSummaryHtml(text) {
+  return text
+    .split('\n')
+    .map(line => {
+      if (line.startsWith('## ')) {
+        return `<span class="h2">${escapeHtml(line.slice(3))}</span>`;
+      }
+      return escapeHtml(line)
+        .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text)">$1</strong>')
+        + '\n';
+    })
+    .join('');
+}
+
+// ── 复制 / 导出 ──
+function copyResult() {
+  const el = document.getElementById('summaryPanel');
+  const text = el.innerText;
+  if (!text || text.includes('等待')) return;
+  navigator.clipboard.writeText(text).then(() => setStatus('已复制到剪贴板 ✓', 'done'));
+}
+
+function exportMd() {
+  const el = document.getElementById('summaryPanel');
+  const text = el.innerText;
+  if (!text || text.includes('等待')) return;
+  const url = document.getElementById('urlInput').value;
+  const content = `# YouTube 视频总结\n\n> ${url}\n\n${text}`;
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `summary-${currentVideoId || 'video'}.md`;
+  a.click();
+}
+
+async function clearCache() {
+  if (!currentVideoId) { setStatus('没有当前视频缓存', 'idle'); return; }
+  await fetch(`/cache/${currentVideoId}`, { method: 'DELETE' });
+  setStatus('缓存已清除，下次将重新处理', 'idle');
+}
+
+// ── Enter 键触发 ──
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startSummarize();
+});
+
+// ── 粘贴时自动触发（可选）──
+document.getElementById('urlInput').addEventListener('paste', () => {
+  setTimeout(() => {
+    if (document.getElementById('urlInput').value.includes('youtube.com') ||
+        document.getElementById('urlInput').value.includes('youtu.be')) {
+      startSummarize();
+    }
+  }, 50);
+});
+</script>
+</body>
+</html>
