@@ -86,44 +86,86 @@ def _download_and_parse_caption(url: str) -> list[dict]:
 
 
 def _parse_json_captions(json_data: str) -> list[dict]:
-    """解析 YouTube JSON 格式字幕 (pb3)"""
+    """解析 YouTube JSON 格式字幕 (pb3)，合并细碎单词为长句"""
     try:
         data = json.loads(json_data)
-        transcript = []
-
+        raw_chunks = []
         events = data.get('events', [])
+        
         for event in events:
+            start_ms = event.get('tStartMs', 0)
             segs = event.get('segs', [])
+            chunk_text = ""
             for seg in segs:
                 text = seg.get('utf8', '') or seg.get('text', '')
-                # 跳过特殊控制字符
                 if text and not text.startswith('\u200C'):
-                    text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
-                    text = text.replace('\n', ' ').replace('\xa0', ' ').strip()
-                    # 清理特殊 Unicode 字符
-                    text = ''.join(c for c in text if ord(c) >= 32 or c in '\n\t')
-                    if text:
-                        transcript.append({"text": text})
+                    chunk_text += text
+            
+            # 清理文本
+            chunk_text = chunk_text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+            chunk_text = chunk_text.replace('\n', ' ').replace('\xa0', ' ').strip()
+            chunk_text = ''.join(c for c in chunk_text if ord(c) >= 32)
+            
+            if chunk_text:
+                raw_chunks.append({
+                    "text": chunk_text,
+                    "start": start_ms / 1000.0,
+                    "duration": event.get('dDurationMs', 0) / 1000.0
+                })
 
-        return transcript if transcript else None
+        if not raw_chunks: return None
+
+        # 合并策略：按时间间隔和标点符号合并
+        merged = []
+        if not raw_chunks: return None
+        
+        current = raw_chunks[0]
+        for next_chunk in raw_chunks[1:]:
+            # 如果两个片段间隔很短（小于1.5秒）或者当前片段不以标点结尾
+            time_gap = next_chunk['start'] - (current['start'] + current['duration'])
+            
+            # 判断是否以结束标点结尾
+            ends_with_punc = any(current['text'].endswith(p) for p in ('.', '?', '!', '。', '？', '！'))
+            
+            if (time_gap < 1.5 and not ends_with_punc) or len(current['text'].split()) < 8:
+                current['text'] += " " + next_chunk['text']
+                current['duration'] = (next_chunk['start'] + next_chunk['duration']) - current['start']
+            else:
+                merged.append(current)
+                current = next_chunk
+        merged.append(current)
+        
+        return merged
     except Exception as e:
         print(f"JSON parsing failed: {e}")
         return None
 
 
 def _parse_xml_captions(xml_data: str) -> list[dict]:
-    """解析 YouTube XML 格式字幕"""
+    """解析 YouTube XML 格式字幕，支持时间戳"""
     import xml.etree.ElementTree as ET
     try:
         root = ET.fromstring(xml_data)
         transcript = []
         for p in root.findall('.//p'):
             text = p.text or ""
-            # 处理 XML 实体和换行符
+            # 有些 ASR 数据在 <s> 标签里
+            if not text:
+                text = "".join(s.text for s in p.findall('s') if s.text)
+            
             text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
             text = text.replace('\n', ' ').strip()
+            
             if text:
-                transcript.append({"text": text})
+                # 获取时间戳属性（毫秒或秒）
+                t = float(p.get('t', 0))
+                # 如果数值很大，通常是毫秒
+                start = t / 1000.0 if t > 10000 else t 
+                transcript.append({
+                    "text": text,
+                    "start": start,
+                    "duration": float(p.get('d', 0)) / 1000.0
+                })
         return transcript if transcript else None
     except Exception as e:
         print(f"XML parsing failed: {e}")
