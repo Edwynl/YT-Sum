@@ -137,7 +137,7 @@ async def api_summarize_stream(req: SummarizeRequest):
     async def event_stream():
         # Step 1：获取字幕
         try:
-            transcript = get_transcript(req.url)
+            transcript = get_transcript(req.url, proxy=req.proxy)
         except Exception as e:
             print(f"SSE Error during transcript fetch: {e}")
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
