@@ -30,17 +30,17 @@ def _clean_json_response(raw: str) -> str:
     return raw
 
 
-async def batch_translate(
-    texts: list[str],
+async def batch_translate_stream(
+    transcript: list[dict],
     model: str = DEFAULT_TRANSLATE_MODEL,
     batch_size: int = 15,
-) -> list[str]:
+):
     """
-    批量翻译字幕文本，每批 batch_size 条。
-    如果某批翻译失败，返回原文（英文），不中断整体流程。
+    分批翻译字幕并流式 yield 结果。
+    Yield 格式: (index_start, translated_batch_list)
     """
-    results = []
-
+    texts = [t["text"] for t in transcript]
+    
     async with httpx.AsyncClient(timeout=120) as client:
         for i in range(0, len(texts), batch_size):
             batch = texts[i: i + batch_size]
@@ -56,7 +56,7 @@ async def batch_translate(
                         "prompt": prompt,
                         "stream": False,
                         "options": {
-                            "temperature": 0.1,   # 翻译要稳定
+                            "temperature": 0.1,
                             "num_ctx": 4096,
                         },
                     },
@@ -66,16 +66,29 @@ async def batch_translate(
                 cleaned = _clean_json_response(raw)
                 translated = json.loads(cleaned)
 
-                # 确保数量一致
                 if isinstance(translated, list) and len(translated) == len(batch):
-                    results.extend(translated)
+                    yield i, translated
                 else:
-                    results.extend(batch)  # 数量不对，保留原文
+                    yield i, batch  # 数量不对，返回原文
                 
-            except (json.JSONDecodeError, KeyError):
-                results.extend(batch)  # 解析失败，保留原文
             except Exception as e:
-                print(f"Translation batch failed: {e}")
-                results.extend(batch)
+                print(f"Translation batch {i} failed: {e}")
+                yield i, batch
 
-    return results
+
+async def batch_translate(
+    texts: list[str],
+    model: str = DEFAULT_TRANSLATE_MODEL,
+    batch_size: int = 15,
+) -> list[str]:
+    """旧接口适配，一次性返回全部结果"""
+    results = [None] * len(texts)
+    # 构造 dummy transcript
+    dummy = [{"text": t} for t in texts]
+    async for i, translated in batch_translate_stream(dummy, model, batch_size):
+        for idx, val in enumerate(translated):
+            if i + idx < len(results):
+                results[i + idx] = val
+    
+    # 填充未成功的部分
+    return [r if r is not None else texts[idx] for idx, r in enumerate(results)]

@@ -1,6 +1,7 @@
 import json
 import os
 import hashlib
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 import httpx
 from transcript import get_transcript, extract_video_id
 from summarizer import summarize, summarize_stream
-from translator import batch_translate
+from translator import batch_translate, batch_translate_stream
 
 # ── 初始化 ────────────────────────────────────────────────
 app = FastAPI(title="YouTube Summarizer", version="1.0")
@@ -69,37 +70,21 @@ async def health():
 
 @app.post("/summarize")
 async def api_summarize(req: SummarizeRequest):
-    """
-    一键总结接口（非流式）。
-    返回：{ video_id, summary, transcript: [{text, translation, start, duration}] }
-    """
+    """一键总结接口（非流式）- 同步版本保留用于旧兼容或缓存"""
     try:
         video_id = extract_video_id(req.url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 命中缓存直接返回
     if req.use_cache:
         cached = load_cache(video_id)
         if cached:
             return {**cached, "from_cache": True}
 
-    # 获取字幕
     try:
         transcript = get_transcript(req.url, proxy=req.proxy)
-    except Exception as e:
-        print(f"Error during summarization process: {e}")
-        raise HTTPException(status_code=422, detail=f"处理视频失败: {str(e)}")
-
-    # AI 总结
-    try:
         summary = summarize(transcript, model=req.model)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-    # 翻译字幕（可选）
-    bilingual = transcript
-    if req.translate:
+        
         texts = [t["text"] for t in transcript]
         translations = await batch_translate(texts, model=req.model)
         bilingual = [
@@ -112,62 +97,124 @@ async def api_summarize(req: SummarizeRequest):
             for t, tr in zip(transcript, translations)
         ]
 
-    result = {
-        "video_id": video_id,
-        "summary": summary,
-        "transcript": bilingual,
-        "from_cache": False,
-    }
-    save_cache(video_id, result)
-    return result
+        result = {
+            "video_id": video_id,
+            "summary": summary,
+            "transcript": bilingual,
+            "from_cache": False,
+        }
+        save_cache(video_id, result)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/summarize/stream")
 async def api_summarize_stream(req: SummarizeRequest):
     """
-    流式总结接口（SSE）。
-    先推送字幕，再流式推送 AI 总结内容。
-    格式：data: {"type": "transcript"|"token"|"done"|"error", ...}
+    流式总结接口（SSE）- 并行增强版。
     """
     try:
         video_id = extract_video_id(req.url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # 如果有完全缓存，直接秒回
+    if req.use_cache:
+        cached = load_cache(video_id)
+        if cached:
+            async def cached_stream():
+                # 分两波发，模仿流式感但极快
+                yield f"data: {json.dumps({'type': 'transcript', 'data': cached['transcript'], 'cached': True})}\n\n"
+                tokens = cached['summary'].split(' ')
+                for t in tokens:
+                    yield f"data: {json.dumps({'type': 'token', 'text': t + ' '})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'video_id': video_id})}\n\n"
+            return StreamingResponse(cached_stream(), media_type="text/event-stream")
+
     async def event_stream():
-        # Step 1：获取字幕
+        # Step 1：立即获取字幕
         try:
             transcript = get_transcript(req.url, proxy=req.proxy)
         except Exception as e:
-            print(f"SSE Error during transcript fetch: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': f'获取字幕失败: {e}'})}\n\n"
             return
 
-        # Step 2：翻译字幕（批量，先推送）
-        texts = [t["text"] for t in transcript]
-        translations = await batch_translate(texts, model=req.model) if req.translate else texts
-        bilingual = [
-            {
-                "text": t["text"],
-                "translation": tr,
-                "start": t["start"],
-                "duration": t["duration"],
-            }
-            for t, tr in zip(transcript, translations)
-        ]
-        yield f"data: {json.dumps({'type': 'transcript', 'data': bilingual})}\n\n"
+        # Step 2：立即推送原始字幕，消除白屏
+        yield f"data: {json.dumps({'type': 'transcript', 'data': transcript})}\n\n"
 
-        # Step 3：流式生成总结
+        # Step 3：并发启动【总结流】和【翻译流】
+        summary_queue = asyncio.Queue()
+        translate_queue = asyncio.Queue()
+
+        async def run_summary():
+            try:
+                async for token in summarize_stream(transcript, model=req.model):
+                    await summary_queue.put(token)
+            except Exception as e:
+                await summary_queue.put(f"ERROR: {e}")
+            await summary_queue.put(None) # Sentinel
+
+        async def run_translation():
+            try:
+                async for i, trans_batch in batch_translate_stream(transcript, model=req.model):
+                    await translate_queue.put((i, trans_batch))
+            except Exception as e:
+                print(f"Parallel translation error: {e}")
+            await translate_queue.put(None) # Sentinel
+
+        # 启动后台任务
+        s_task = asyncio.create_task(run_summary())
+        t_task = asyncio.create_task(run_translation())
+
         full_summary = ""
-        async for token in summarize_stream(transcript, model=req.model):
-            full_summary += token
-            yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+        bilingual_map = {idx: t["text"] for idx, t in enumerate(transcript)} # Placeholder
+        translation_results = [None] * len(transcript)
 
-        # Step 4：完成，写缓存
+        # 混合监听两个队列并行输出
+        while not (s_task.done() and t_task.done() and summary_queue.empty() and translate_queue.empty()):
+            # 优先处理总结，让用户看到文字在动
+            try:
+                while not summary_queue.empty():
+                    token = await summary_queue.get()
+                    if token is None: break
+                    if token.startswith("ERROR: "):
+                         yield f"data: {json.dumps({'type': 'error', 'message': token})}\n\n"
+                    else:
+                        full_summary += token
+                        yield f"data: {json.dumps({'type': 'token', 'text': token})}\n\n"
+            except Exception: pass
+
+            # 其次处理翻译包
+            try:
+                while not translate_queue.empty():
+                    item = await translate_queue.get()
+                    if item is None: break
+                    idx_start, trans_list = item
+                    # 发送分段更新
+                    yield f"data: {json.dumps({'type': 'transcript_chunk', 'start_idx': idx_start, 'data': trans_list})}\n\n"
+                    # 更新缓存数据结构
+                    for offset, val in enumerate(trans_list):
+                        if idx_start + offset < len(translation_results):
+                            translation_results[idx_start + offset] = val
+            except Exception: pass
+            
+            await asyncio.sleep(0.05) # 稍微让出控制权
+
+        # 完成后整理最终状态并持久化
+        final_bilingual = []
+        for i, t in enumerate(transcript):
+            final_bilingual.append({
+                "text": t["text"],
+                "translation": translation_results[i] or t["text"],
+                "start": t["start"],
+                "duration": t["duration"]
+            })
+
         result = {
             "video_id": video_id,
             "summary": full_summary,
-            "transcript": bilingual,
+            "transcript": final_bilingual,
             "from_cache": False,
         }
         save_cache(video_id, result)
@@ -178,7 +225,6 @@ async def api_summarize_stream(req: SummarizeRequest):
 
 @app.delete("/cache/{video_id}")
 async def clear_cache(video_id: str):
-    """清除指定视频的缓存"""
     path = get_cache_path(video_id)
     if path.exists():
         path.unlink()
@@ -188,7 +234,6 @@ async def clear_cache(video_id: str):
 
 @app.get("/cache")
 async def list_cache():
-    """列出所有已缓存的视频"""
     files = list(CACHE_DIR.glob("*.json"))
     result = []
     for f in files:
@@ -199,14 +244,12 @@ async def list_cache():
                 "video_id": data.get("video_id", f.stem),
                 "summary_preview": data.get("summary", "")[:100] + "...",
             })
-        except Exception:
-            pass
+        except Exception: pass
     return {"cached": result}
 
 
 @app.get("/models")
 async def list_models():
-    """获取本地 Ollama 模型列表"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:11434/api/tags")
@@ -214,13 +257,10 @@ async def list_models():
                 data = response.json()
                 models = [m["name"] for m in data.get("models", [])]
                 return {"models": models}
-            else:
-                return {"models": [DEFAULT_MODEL], "error": "Ollama API error"}
+            return {"models": [DEFAULT_MODEL], "error": "Ollama API error"}
     except Exception as e:
         return {"models": [DEFAULT_MODEL], "error": str(e)}
 
-
-# ── 静态文件（前端）────────────────────────────────────────
 frontend_dir = Path(__file__).parent.parent / "frontend"
 if frontend_dir.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

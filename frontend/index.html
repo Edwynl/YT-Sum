@@ -33,7 +33,7 @@
     flex-direction: column;
   }
 
-  /* Scanline overlay - 减弱不必要的视觉干扰 */
+  /* Scanline overlay */
   body::before {
     content: '';
     position: fixed;
@@ -49,7 +49,6 @@
     z-index: 9999;
   }
 
-  /* ── Header ── */
   header {
     padding: 28px 40px 20px;
     border-bottom: 1px solid var(--border);
@@ -65,19 +64,12 @@
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     display: flex; align-items: center; justify-content: center;
     font-size: 14px; font-weight: 700;
-    animation: pulse-logo 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse-logo {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
   }
 
   .header-title {
     font-family: var(--sans);
     font-size: 20px;
     font-weight: 800;
-    letter-spacing: -0.5px;
   }
 
   .header-title span { color: var(--accent); }
@@ -89,11 +81,9 @@
     border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: 2px;
-    letter-spacing: 2px;
     text-transform: uppercase;
   }
 
-  /* ── Input Zone ── */
   .input-zone {
     padding: 32px 40px;
     background: var(--surface);
@@ -103,7 +93,6 @@
   .input-label {
     font-size: 10px;
     color: var(--text-muted);
-    letter-spacing: 3px;
     text-transform: uppercase;
     margin-bottom: 12px;
     display: flex;
@@ -114,18 +103,11 @@
   .input-label::before {
     content: '>';
     color: var(--accent);
-    animation: blink 1.2s step-end infinite;
-  }
-
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
   }
 
   .input-row {
     display: flex;
     gap: 12px;
-    align-items: stretch;
   }
 
   .url-input {
@@ -137,15 +119,11 @@
     font-size: 13px;
     padding: 14px 18px;
     outline: none;
-    transition: border-color 0.2s;
     border-radius: 2px;
   }
 
-  .url-input::placeholder { color: var(--text-dim); }
-
   .url-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(124,106,255,0.1);
   }
 
   .model-select {
@@ -156,7 +134,6 @@
     font-size: 12px;
     padding: 0 14px;
     outline: none;
-    cursor: pointer;
     border-radius: 2px;
     min-width: 140px;
   }
@@ -170,23 +147,12 @@
     font-weight: 700;
     padding: 0 28px;
     cursor: pointer;
-    letter-spacing: 2px;
-    text-transform: uppercase;
     border-radius: 2px;
     transition: all 0.15s;
-    white-space: nowrap;
   }
 
-  .btn-summarize:hover { background: #9181ff; transform: translateY(-1px); }
-  .btn-summarize:active { transform: translateY(0); }
-  .btn-summarize:disabled {
-    background: var(--border);
-    color: var(--text-dim);
-    cursor: not-allowed;
-    transform: none;
-  }
+  .btn-summarize:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* ── Status Bar ── */
   .status-bar {
     padding: 8px 40px;
     background: var(--bg);
@@ -203,28 +169,13 @@
     width: 6px; height: 6px;
     border-radius: 50%;
     background: var(--text-dim);
-    flex-shrink: 0;
   }
-  .status-dot.loading { background: var(--accent); animation: spin-dot 1s linear infinite; }
+  .status-dot.loading { background: var(--accent); animation: pulse 1s infinite; }
   .status-dot.done { background: var(--accent3); }
   .status-dot.error { background: var(--accent2); }
 
-  @keyframes spin-dot {
-    0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; }
-  }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-  .status-cache {
-    margin-left: auto;
-    padding: 2px 8px;
-    background: rgba(67,233,123,0.1);
-    border: 1px solid rgba(67,233,123,0.2);
-    color: var(--accent3);
-    font-size: 10px;
-    border-radius: 2px;
-    letter-spacing: 1px;
-  }
-
-  /* ── Main Layout ── */
   .main-layout {
     flex: 1;
     display: grid;
@@ -232,7 +183,6 @@
     min-height: 0;
   }
 
-  /* ── Summary Panel ── */
   .panel {
     display: flex;
     flex-direction: column;
@@ -249,21 +199,10 @@
     gap: 10px;
     font-size: 10px;
     color: var(--text-muted);
-    letter-spacing: 2px;
     text-transform: uppercase;
-    flex-shrink: 0;
   }
 
-  .panel-icon {
-    font-size: 14px;
-    opacity: 0.8;
-  }
-
-  .panel-actions {
-    margin-left: auto;
-    display: flex;
-    gap: 6px;
-  }
+  .panel-actions { margin-left: auto; display: flex; gap: 6px; }
 
   .btn-sm {
     background: transparent;
@@ -274,60 +213,23 @@
     padding: 4px 10px;
     cursor: pointer;
     border-radius: 2px;
-    letter-spacing: 1px;
-    transition: all 0.15s;
-  }
-
-  .btn-sm:hover {
-    border-color: var(--accent);
-    color: var(--accent);
   }
 
   .panel-body {
     flex: 1;
     overflow-y: auto;
-    padding: 28px 28px;
+    padding: 24px;
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
-
-  /* Summary markdown-like rendering */
-  .summary-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 16px;
-    color: var(--text-dim);
-  }
-
-  .empty-ascii {
-    font-size: 11px;
-    line-height: 1.4;
-    text-align: center;
-    opacity: 0.4;
   }
 
   .summary-content {
     font-size: 13px;
-    line-height: 1.85;
+    line-height: 1.8;
     color: var(--text);
     white-space: pre-wrap;
-    word-break: break-word;
   }
 
-  /* Style inline markdown elements */
-  .summary-content .h2 {
-    font-family: var(--sans);
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--accent);
-    margin: 20px 0 8px;
-    letter-spacing: 0.5px;
-    display: block;
-  }
-
+  .summary-content .h2 { color: var(--accent); font-weight: 700; margin: 20px 0 8px; display: block; }
   .summary-content .h2:first-child { margin-top: 0; }
 
   .cursor-blink {
@@ -335,90 +237,32 @@
     width: 8px; height: 14px;
     background: var(--accent);
     animation: blink 0.8s step-end infinite;
-    vertical-align: text-bottom;
-    margin-left: 2px;
+    vertical-align: middle;
   }
 
-  /* ── Transcript Panel ── */
-  .transcript-panel {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-  .search-row {
-    padding: 10px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    flex-shrink: 0;
-  }
+  .transcript-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .search-row { padding: 10px 18px; border-bottom: 1px solid var(--border); }
+  .search-input { width: 100%; background: transparent; border: none; color: var(--text); font-family: var(--mono); outline: none; }
 
-  .search-input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text);
-    outline: none;
-    padding: 2px 0;
-  }
-
-  .search-input::placeholder { color: var(--text-dim); }
-
-  .transcript-body {
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
+  .transcript-body { flex: 1; overflow-y: auto; scrollbar-width: thin; }
 
   .subtitle-card {
     padding: 14px 20px;
-    border-bottom: 1px solid rgba(42,42,56,0.5);
+    border-bottom: 1px solid rgba(42,42,56,0.3);
     display: grid;
     grid-template-columns: 52px 1fr;
     gap: 12px;
-    align-items: start;
-    transition: background 0.1s;
   }
 
-  .subtitle-card:hover { background: var(--surface2); }
-  .subtitle-card.highlight { background: rgba(124,106,255,0.08); }
+  .subtitle-time { font-size: 10px; color: var(--accent); }
+  .subtitle-en { font-size: 12px; color: var(--text); margin-bottom: 4px; }
+  .subtitle-zh { font-size: 12px; color: var(--text-muted); transition: color 0.3s; }
+  .subtitle-zh.translating { color: var(--text-dim); font-style: italic; }
 
-  .subtitle-time {
-    font-size: 10px;
-    color: var(--accent);
-    padding-top: 2px;
-    letter-spacing: 0.5px;
-    font-weight: 500;
-  }
-
-  .subtitle-texts { flex: 1; }
-
-  .subtitle-en {
-    font-size: 12px;
-    color: var(--text);
-    line-height: 1.5;
-    margin-bottom: 4px;
-  }
-
-  .subtitle-zh {
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  mark {
-    background: rgba(255,107,107,0.25);
-    color: var(--accent2);
-    border-radius: 2px;
-    padding: 0 2px;
-  }
-
-  /* Scrollbar */
+  /* 滚动条优化 */
   ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 </style>
 </head>
@@ -427,308 +271,168 @@
 <header>
   <div class="logo-mark">▶</div>
   <div class="header-title">YT<span>Sum</span></div>
-  <div class="header-tag">Local AI · Ollama</div>
+  <div class="header-tag">Parallel AI · Ollama</div>
 </header>
 
 <div class="input-zone">
   <div class="input-label">YouTube URL</div>
   <div class="input-row">
-    <input class="url-input" id="urlInput"
-      type="text"
-      placeholder="https://www.youtube.com/watch?v=..."
-      autocomplete="off"
-      spellcheck="false">
-    <select class="model-select" id="modelSelect">
-      <option value="qwen3.5:9b">qwen3.5:9b (保底)</option>
-    </select>
-    <button class="btn-sm" style="margin-left:4px; height:auto; padding:0 8px" onclick="loadModels()">🔄 刷新</button>
-    <button class="btn-summarize" id="btnSummarize" onclick="startSummarize()">
-      ▶ 一键总结
-    </button>
-    <button class="btn-summarize" id="btnStop" onclick="stopSummarize()" style="display:none; background: var(--accent2); margin-left: 8px;">
-      ■ 停止运行
-    </button>
+    <input class="url-input" id="urlInput" type="text" placeholder="粘贴链接后按回车..." autocomplete="off">
+    <select class="model-select" id="modelSelect"></select>
+    <button class="btn-summarize" id="btnSummarize" onclick="startSummarize()">▶ 一键总结</button>
+    <button class="btn-summarize" id="btnStop" onclick="stopSummarize()" style="display:none; background: var(--accent2); margin-left: 8px;">■ 停止</button>
   </div>
   <div class="input-row" style="margin-top:8px; border-top: 1px solid var(--border); padding-top:8px">
     <div style="font-size:11px; color:var(--text-dim); display:flex; align-items:center;">
       <span>代理(可选):</span>
-      <input id="proxyInput" type="text" placeholder="http://127.0.0.1:7890" 
-             style="background:transparent; border:none; color:var(--accent2); font-size:11px; width:200px; margin-left:4px; outline:none">
+      <input id="proxyInput" type="text" placeholder="http://127.0.0.1:7890" style="background:transparent; border:none; color:var(--accent2); font-size:11px; width:200px; margin-left:4px; outline:none">
     </div>
   </div>
 </div>
 
 <div class="status-bar">
   <div class="status-dot" id="statusDot"></div>
-  <span id="statusText">就绪 — 粘贴 YouTube 链接开始</span>
-  <span class="status-cache" id="cacheTag" style="display:none">⚡ CACHED</span>
+  <span id="statusText">就绪</span>
 </div>
 
 <div class="main-layout">
   <div class="panel">
-    <div class="panel-header">
-      <span class="panel-icon">◈</span>
-      AI 总结
-      <div class="panel-actions">
-        <button class="btn-sm" onclick="copyResult()">复制</button>
-        <button class="btn-sm" onclick="exportMd()">导出 .md</button>
-        <button class="btn-sm" onclick="clearCache()">清除缓存</button>
-      </div>
-    </div>
-    <div class="panel-body" id="summaryPanel">
-      <div class="summary-empty" id="summaryEmpty">
-        <div class="empty-ascii">┌─────────────────────┐<br>│  等待视频链接输入...  │<br>└─────────────────────┘</div>
-        <div style="font-size:11px;color:var(--text-dim)">粘贴链接后点击一键总结</div>
-      </div>
-    </div>
+    <div class="panel-header"><span>◈</span> AI 总结 <div class="panel-actions"><button class="btn-sm" onclick="copyResult()">复制</button></div></div>
+    <div class="panel-body" id="summaryPanel"></div>
   </div>
-
   <div class="transcript-panel">
-    <div class="panel-header">
-      <span class="panel-icon">≡</span>
-      双语字幕
-      <div class="panel-actions" style="margin-left:auto">
-        <span id="subtitleCount" style="color:var(--text-dim);font-size:10px"></span>
-      </div>
-    </div>
-    <div class="search-row">
-      <input class="search-input" id="searchInput"
-        placeholder="/ 搜索字幕关键词..."
-        oninput="filterTranscript(this.value)">
-    </div>
-    <div class="transcript-body" id="transcriptPanel">
-      <div class="summary-empty">
-        <div class="empty-ascii" style="opacity:0.25">─── 字幕将在总结完成后显示 ───</div>
-      </div>
-    </div>
+    <div class="panel-header"><span>≡</span> 字幕流 (实时翻译) <span id="subtitleCount" style="margin-left:auto; opacity:0.5"></span></div>
+    <div class="search-row"><input class="search-input" id="searchInput" placeholder="/ 搜索关键词..." oninput="filterTranscript(this.value)"></div>
+    <div class="transcript-body" id="transcriptPanel"></div>
   </div>
 </div>
 
 <script>
-let currentVideoId = null;
 let transcriptData = [];
-let fullTextGenerated = "";
-let currentReader = null; // 用于存储当前的流读取器
+let fullSummary = "";
+let currentReader = null;
 let isStopping = false;
 
-// ── 错误处理辅助 ──
-function stringifyError(err) {
-  if (!err) return '未知错误';
-  if (typeof err === 'string') return err;
-  return err.message || JSON.stringify(err);
-}
-
 function setStatus(text, mode = 'ready') {
-  const dot = document.getElementById('statusDot');
-  const txt = document.getElementById('statusText');
-  if (!dot || !txt) return;
-  txt.innerText = stringifyError(text);
-  dot.className = 'status-dot ' + mode;
+  document.getElementById('statusText').innerText = text;
+  document.getElementById('statusDot').className = 'status-dot ' + mode;
 }
 
-// ── 动态模型加载 ──
 async function loadModels() {
   const select = document.getElementById('modelSelect');
   try {
     const res = await fetch('/models?t=' + Date.now());
     if (res.ok) {
       const data = await res.json();
-      if (data && data.models) {
-        // 分类模型：快模型和高质量模型
-        let options = '';
-        data.models.forEach(m => {
-          let label = m;
-          if (m.includes('3b') || m.includes('1.5b')) label += ' (推荐-极致快)';
-          if (m.includes('9b') || m.includes('8b')) label += ' (推荐-质量高)';
-          options += `<option value="${m}">${label}</option>`;
-        });
-        select.innerHTML = options;
-        // 默认选中高质量模型
-        for (let i = 0; i < select.options.length; i++) {
-          if (select.options[i].value.includes('9b')) {
-            select.selectedIndex = i; break;
-          }
-        }
+      select.innerHTML = data.models.map(m => `<option value="${m}">${m.includes('3b')?'⚡ ':''}${m}</option>`).join('');
+      for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value.includes('9b')) { select.selectedIndex = i; break; }
       }
     }
-  } catch (e) { console.error(e); }
+  } catch (e) {}
 }
 loadModels();
 
-function formatTime(seconds) {
-  const s = Math.floor(seconds);
-  const m = Math.floor(s / 60);
-  const ss = String(s % 60).padStart(2, '0');
-  const mm = String(m % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderSummary(text) {
+  const html = text.split('\n').map(line => {
+    if (line.startsWith('## ')) return `<span class="h2">${escapeHtml(line.slice(3))}</span>`;
+    return escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '\n';
+  }).join('');
+  document.getElementById('summaryPanel').innerHTML = `<div class="summary-content">${html}<span class="cursor-blink"></span></div>`;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function initTranscript(data) {
+  transcriptData = data.map(t => ({...t, translation: ''}));
+  renderTranscript();
 }
 
-function renderSummaryHtml(text) {
-  const lines = text.split('\n');
-  let html = '<div class="summary-content">';
-  for (const line of lines) {
-    if (line.startsWith('## ')) {
-      html += `<span class="h2">${escapeHtml(line.slice(3))}</span>`;
-    } else {
-      const formatted = escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      html += formatted + '\n';
-    }
-  }
-  html += '<span class="cursor-blink"></span></div>';
-  return html;
+function updateTranscriptChunk(startIdx, translations) {
+  translations.forEach((text, i) => {
+    if (transcriptData[startIdx + i]) transcriptData[startIdx + i].translation = text;
+  });
+  renderTranscript();
 }
 
-function displayTranscript(items) {
+function renderTranscript() {
   const panel = document.getElementById('transcriptPanel');
-  if (!items.length) {
-    panel.innerHTML = '<div class="summary-empty">无字幕</div>';
-    return;
-  }
-  panel.innerHTML = items.map(item => `
-    <div class="subtitle-card">
-      <div class="subtitle-time">${formatTime(item.start)}</div>
+  panel.innerHTML = transcriptData.map((item, i) => `
+    <div class="subtitle-card" id="sub-${i}">
+      <div class="subtitle-time">${Math.floor(item.start/60)}:${String(Math.floor(item.start%60)).padStart(2,'0')}</div>
       <div class="subtitle-texts">
         <div class="subtitle-en">${escapeHtml(item.text)}</div>
-        ${item.translation ? `<div class="subtitle-zh">${escapeHtml(item.translation)}</div>` : ''}
+        <div class="subtitle-zh ${!item.translation?'translating':''}">${escapeHtml(item.translation || '翻译中...')}</div>
       </div>
     </div>
   `).join('');
-  document.getElementById('subtitleCount').textContent = `${items.length} 条`;
 }
 
-// ── 核心逻辑：流式总结 ──
 async function startSummarize() {
   const url = document.getElementById('urlInput').value.trim();
   const model = document.getElementById('modelSelect').value;
   const proxy = document.getElementById('proxyInput').value.trim();
-  
-  if (!url) return alert('请输入 URL');
-  
+  if (!url) return;
+
   const btn = document.getElementById('btnSummarize');
   const stopBtn = document.getElementById('btnStop');
+  btn.disabled = true; stopBtn.style.display = 'inline-block';
+  isStopping = false; fullSummary = ""; transcriptData = [];
   
-  btn.disabled = true;
-  stopBtn.style.display = 'inline-block';
-  isStopping = false;
-  
-  setStatus('正在处理字幕...', 'loading');
-  
-  const summaryPanel = document.getElementById('summaryPanel');
-  summaryPanel.innerHTML = '<div class="summary-content">正在初始化连接...</div>';
-  
-  fullTextGenerated = "";
+  setStatus('初始化...', 'loading');
+  document.getElementById('summaryPanel').innerHTML = '正在拉取视频字幕并启动并行任务...';
 
   try {
     const response = await fetch('/summarize/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, model, proxy: proxy || null, translate: true, use_cache: true })
+      body: JSON.stringify({ url, model, proxy: proxy||null, translate: true, use_cache: true })
     });
-
-    if (!response.ok) throw new Error('网络请求失败');
 
     currentReader = response.body.getReader();
     const decoder = new TextDecoder();
     
     while (true) {
       const { value, done } = await currentReader.read();
-      if (done) break;
-      if (isStopping) {
-        await currentReader.cancel();
-        break;
-      }
+      if (done || isStopping) break;
       
       const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-      
-      for (const line of lines) {
+      for (const line of chunk.split('\n')) {
         if (!line.startsWith('data: ')) continue;
-        try {
-          const payload = JSON.parse(line.slice(6));
-          if (payload.type === 'transcript') {
-            transcriptData = payload.data;
-            displayTranscript(transcriptData);
-            setStatus('字幕就绪，正在生成总结...', 'loading');
-          } else if (payload.type === 'token') {
-            fullTextGenerated += payload.text;
-            summaryPanel.innerHTML = renderSummaryHtml(fullTextGenerated);
-          } else if (payload.type === 'done') {
-            currentVideoId = payload.video_id;
-            // 移除光标
-            summaryPanel.innerHTML = renderSummaryHtml(fullTextGenerated).replace('<span class="cursor-blink"></span>', '');
-            setStatus('总结完成', 'done');
-          } else if (payload.type === 'error') {
-            throw new Error(payload.message);
-          }
-        } catch (e) {
-          console.error('Parse error:', e, line);
+        const payload = JSON.parse(line.slice(6));
+        
+        if (payload.type === 'transcript') {
+          initTranscript(payload.data);
+          setStatus(payload.cached ? '缓存已命中，秒推结果' : '字幕就绪，并行总结与翻译中...', 'loading');
+        } else if (payload.type === 'token') {
+          fullSummary += payload.text;
+          renderSummary(fullSummary);
+        } else if (payload.type === 'transcript_chunk') {
+          updateTranscriptChunk(payload.start_idx, payload.data);
+        } else if (payload.type === 'done') {
+          setStatus('任务完成', 'done');
+          renderSummary(fullSummary); // 移除光标
+        } else if (payload.type === 'error') {
+          throw new Error(payload.message);
         }
       }
     }
   } catch (err) {
-    if (isStopping) {
-      setStatus('任务已中止', 'idle');
-    } else {
-      const msg = stringifyError(err);
-      setStatus('出错: ' + msg, 'error');
-      summaryPanel.innerHTML = `<div class="summary-content" style="color:var(--accent2)">❌ 错误: ${msg}</div>`;
-    }
+    if (!isStopping) setStatus('出错: ' + err.message, 'error');
   } finally {
-    btn.disabled = false;
-    stopBtn.style.display = 'none';
-    currentReader = null;
+    btn.disabled = false; stopBtn.style.display = 'none';
   }
 }
 
-async function stopSummarize() {
-  if (confirm('确定要中止当前任务吗？这将停止 AI 总结和翻译工作。')) {
-    isStopping = true;
-    if (currentReader) {
-      try {
-        await currentReader.cancel();
-      } catch (e) {
-        console.warn('Reader cancel failed:', e);
-      }
-    }
-    setStatus('正在中止...', 'loading');
-  }
-}
+function stopSummarize() { isStopping = true; if (currentReader) currentReader.cancel(); setStatus('已中止', 'idle'); }
 
-// ── 修复按键干扰 UI 变色问题 ──
-function blockKeys(e) {
-  // 拦截左右方向键，防止其冒泡到外部容器（如某些 IDE 插件拦截这些按键会导致界面变色）
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    e.stopPropagation();
-    // 注意：不要在 input 内部 preventDefault，否则光标移动会失效
-    // 仅 stopPropagation 理论上可以阻止外层捕获
-  }
-}
-
-document.getElementById('urlInput').addEventListener('keydown', blockKeys);
-document.getElementById('proxyInput').addEventListener('keydown', blockKeys);
-
-// 全局拦截测试（如果是在 IDE 插件内，可以尝试在捕获阶段拦截）
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-    // 仅当焦点在输入框时增强拦截
-    if (document.activeElement.tagName === 'INPUT') {
-      e.stopPropagation();
-    }
-  }
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.stopPropagation();
 }, true);
 
-document.getElementById('urlInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') startSummarize();
-});
+document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') startSummarize(); });
 
-function copyResult() {
-  if (!fullTextGenerated) return;
-  navigator.clipboard.writeText(fullTextGenerated).then(() => setStatus('已复制 ✓', 'done'));
-}
+function copyResult() { navigator.clipboard.writeText(fullSummary); setStatus('已复制', 'done'); }
 </script>
 </body>
 </html>
