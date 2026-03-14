@@ -158,7 +158,8 @@ async def api_summarize_stream(req: SummarizeRequest):
         if req.translate:
             try:
                 # 告知前端进入翻译阶段
-                yield f"data: {json.dumps({'type': 'token', 'text': '\n\n---\n*正在为您翻译字幕预览区...*'})}\n\n"
+                msg = json.dumps({'type': 'token', 'text': '\n\n---\n*正在为您翻译字幕预览区...*'})
+                yield f"data: {msg}\n\n"
                 async for i, trans_batch in batch_translate_stream(transcript, model=req.model):
                     # 推送翻译块
                     yield f"data: {json.dumps({'type': 'transcript_chunk', 'start_idx': i, 'data': trans_batch})}\n\n"
