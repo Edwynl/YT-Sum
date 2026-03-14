@@ -30,7 +30,7 @@ def _clean_json_response(raw: str) -> str:
     return raw
 
 
-def batch_translate(
+async def batch_translate(
     texts: list[str],
     model: str = DEFAULT_TRANSLATE_MODEL,
     batch_size: int = 15,
@@ -41,40 +41,41 @@ def batch_translate(
     """
     results = []
 
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i: i + batch_size]
-        prompt = TRANSLATE_PROMPT.format(
-            items=json.dumps(batch, ensure_ascii=False)
-        )
-
-        try:
-            resp = httpx.post(
-                OLLAMA_URL,
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,   # 翻译要稳定
-                        "num_ctx": 4096,
-                    },
-                },
-                timeout=120,
+    async with httpx.AsyncClient(timeout=120) as client:
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i: i + batch_size]
+            prompt = TRANSLATE_PROMPT.format(
+                items=json.dumps(batch, ensure_ascii=False)
             )
-            resp.raise_for_status()
-            raw = resp.json()["response"]
-            cleaned = _clean_json_response(raw)
-            translated = json.loads(cleaned)
 
-            # 确保数量一致
-            if isinstance(translated, list) and len(translated) == len(batch):
-                results.extend(translated)
-            else:
-                results.extend(batch)  # 数量不对，保留原文
+            try:
+                resp = await client.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.1,   # 翻译要稳定
+                            "num_ctx": 4096,
+                        },
+                    },
+                )
+                resp.raise_for_status()
+                raw = resp.json()["response"]
+                cleaned = _clean_json_response(raw)
+                translated = json.loads(cleaned)
 
-        except (json.JSONDecodeError, KeyError):
-            results.extend(batch)  # 解析失败，保留原文
-        except Exception:
-            results.extend(batch)
+                # 确保数量一致
+                if isinstance(translated, list) and len(translated) == len(batch):
+                    results.extend(translated)
+                else:
+                    results.extend(batch)  # 数量不对，保留原文
+                
+            except (json.JSONDecodeError, KeyError):
+                results.extend(batch)  # 解析失败，保留原文
+            except Exception as e:
+                print(f"Translation batch failed: {e}")
+                results.extend(batch)
 
     return results

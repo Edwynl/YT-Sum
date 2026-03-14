@@ -445,6 +445,9 @@
     <button class="btn-summarize" id="btnSummarize" onclick="startSummarize()">
       ▶ 一键总结
     </button>
+    <button class="btn-summarize" id="btnStop" onclick="stopSummarize()" style="display:none; background: var(--accent2); margin-left: 8px;">
+      ■ 停止运行
+    </button>
   </div>
   <div class="input-row" style="margin-top:8px; border-top: 1px solid var(--border); padding-top:8px">
     <div style="font-size:11px; color:var(--text-dim); display:flex; align-items:center;">
@@ -505,6 +508,8 @@
 let currentVideoId = null;
 let transcriptData = [];
 let fullTextGenerated = "";
+let currentReader = null; // 用于存储当前的流读取器
+let isStopping = false;
 
 // ── 错误处理辅助 ──
 function stringifyError(err) {
@@ -604,7 +609,12 @@ async function startSummarize() {
   if (!url) return alert('请输入 URL');
   
   const btn = document.getElementById('btnSummarize');
+  const stopBtn = document.getElementById('btnStop');
+  
   btn.disabled = true;
+  stopBtn.style.display = 'inline-block';
+  isStopping = false;
+  
   setStatus('正在处理字幕...', 'loading');
   
   const summaryPanel = document.getElementById('summaryPanel');
@@ -621,12 +631,16 @@ async function startSummarize() {
 
     if (!response.ok) throw new Error('网络请求失败');
 
-    const reader = response.body.getReader();
+    currentReader = response.body.getReader();
     const decoder = new TextDecoder();
     
     while (true) {
-      const { value, done } = await reader.read();
+      const { value, done } = await currentReader.read();
       if (done) break;
+      if (isStopping) {
+        await currentReader.cancel();
+        break;
+      }
       
       const chunk = decoder.decode(value);
       const lines = chunk.split('\n');
@@ -656,11 +670,31 @@ async function startSummarize() {
       }
     }
   } catch (err) {
-    const msg = stringifyError(err);
-    setStatus('出错: ' + msg, 'error');
-    summaryPanel.innerHTML = `<div class="summary-content" style="color:var(--accent2)">❌ 错误: ${msg}</div>`;
+    if (isStopping) {
+      setStatus('任务已中止', 'idle');
+    } else {
+      const msg = stringifyError(err);
+      setStatus('出错: ' + msg, 'error');
+      summaryPanel.innerHTML = `<div class="summary-content" style="color:var(--accent2)">❌ 错误: ${msg}</div>`;
+    }
   } finally {
     btn.disabled = false;
+    stopBtn.style.display = 'none';
+    currentReader = null;
+  }
+}
+
+async function stopSummarize() {
+  if (confirm('确定要中止当前任务吗？这将停止 AI 总结和翻译工作。')) {
+    isStopping = true;
+    if (currentReader) {
+      try {
+        await currentReader.cancel();
+      } catch (e) {
+        console.warn('Reader cancel failed:', e);
+      }
+    }
+    setStatus('正在中止...', 'loading');
   }
 }
 

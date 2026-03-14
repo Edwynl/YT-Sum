@@ -101,7 +101,7 @@ async def api_summarize(req: SummarizeRequest):
     bilingual = transcript
     if req.translate:
         texts = [t["text"] for t in transcript]
-        translations = batch_translate(texts, model=req.model)
+        translations = await batch_translate(texts, model=req.model)
         bilingual = [
             {
                 "text": t["text"],
@@ -145,7 +145,7 @@ async def api_summarize_stream(req: SummarizeRequest):
 
         # Step 2：翻译字幕（批量，先推送）
         texts = [t["text"] for t in transcript]
-        translations = batch_translate(texts, model=req.model) if req.translate else texts
+        translations = await batch_translate(texts, model=req.model) if req.translate else texts
         bilingual = [
             {
                 "text": t["text"],
