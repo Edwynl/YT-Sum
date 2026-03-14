@@ -127,7 +127,10 @@ def _parse_json_captions(json_data: str) -> list[dict]:
             # 判断是否以结束标点结尾
             ends_with_punc = any(current['text'].endswith(p) for p in ('.', '?', '!', '。', '？', '！'))
             
-            if (time_gap < 1.5 and not ends_with_punc) or len(current['text'].split()) < 8:
+            # 质量加固：如果合并后太长（超过 80 个单词或 500 字符），则停止合并，防止 AI 后面翻译不动
+            is_too_long = len(current['text'].split()) > 80 or len(current['text']) > 500
+            
+            if ((time_gap < 1.5 and not ends_with_punc) or len(current['text'].split()) < 8) and not is_too_long:
                 current['text'] += " " + next_chunk['text']
                 current['duration'] = (next_chunk['start'] + next_chunk['duration']) - current['start']
             else:
